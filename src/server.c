@@ -78,6 +78,7 @@ static const struct option options[] = {{"port", required_argument, NULL, 'p'},
                                         {"max-clients", required_argument, NULL, 'm'},
                                         {"once", no_argument, NULL, 'o'},
                                         {"exit-no-conn", no_argument, NULL, 'q'},
+                                        {"singelton", no_argument, NULL, 'S'},
                                         {"browser", no_argument, NULL, 'B'},
                                         {"debug", required_argument, NULL, 'd'},
                                         {"version", no_argument, NULL, 'v'},
@@ -312,6 +313,7 @@ int main(int argc, char **argv) {
 
   int start = calc_command_start(argc, argv);
   server = server_new(argc, argv, start);
+  server->singleton = true;
 
   struct lws_context_creation_info info;
   memset(&info, 0, sizeof(info));
@@ -372,6 +374,9 @@ int main(int argc, char **argv) {
         break;
       case 'q':
         server->exit_no_conn = true;
+        break;
+      case 'S':
+        server->singleton = true;
         break;
       case 'B':
         browser = true;
@@ -553,9 +558,9 @@ int main(int argc, char **argv) {
   if (ssl) {
     info.ssl_cert_filepath = cert_path;
     info.ssl_private_key_filepath = key_path;
-    #ifndef LWS_WITH_MBEDTLS
+#ifndef LWS_WITH_MBEDTLS
     info.ssl_options_set = SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1;
-    #endif
+#endif
     if (strlen(ca_path) > 0) {
       info.ssl_ca_filepath = ca_path;
       info.options |= LWS_SERVER_OPTION_REQUIRE_VALID_OPENSSL_CLIENT_CERT;

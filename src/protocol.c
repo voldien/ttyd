@@ -9,7 +9,7 @@
 #include "pty.h"
 #include "server.h"
 #include "utils.h"
-
+static struct pss_tty *singleton = NULL;
 // initial message list
 static char initial_cmds[] = {SET_WINDOW_TITLE, SET_PREFERENCES};
 
@@ -199,6 +199,22 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
   char buf[256];
   size_t n = 0;
 
+  if (singleton == NULL && pss) {
+    uint16_t columns = 0;
+    uint16_t rows = 0;
+    singleton = pss;
+    pss->wsi = wsi;
+    if (!spawn_process(pss, columns, rows)) return 1;
+  }
+  if (singleton) {
+    pss = singleton;
+    pss->wsi = wsi;
+  }
+
+  if (server->singleton && pss) {
+    pss->wsi = wsi;
+  }
+
   switch (reason) {
     case LWS_CALLBACK_FILTER_PROTOCOL_CONNECTION:
       if (server->once && server->client_count > 0) {
@@ -231,7 +247,6 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
     case LWS_CALLBACK_ESTABLISHED:
       pss->initialized = false;
       pss->authenticated = false;
-      pss->wsi = wsi;
       pss->lws_close_status = LWS_CLOSE_STATUS_NOSTATUS;
 
       if (server->url_arg) {
@@ -243,8 +258,6 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
           }
         }
       }
-
-      server->client_count++;
 
       lws_get_peer_simple(lws_get_network_wsi(wsi), pss->address, sizeof(pss->address));
       lwsl_notice("WS   %s - %s, clients: %d\n", pss->path, pss->address, server->client_count);
@@ -346,6 +359,7 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
             }
           }
           json_object_put(obj);
+          if (singleton != NULL) break;
           if (!spawn_process(pss, columns, rows)) return 1;
           break;
         default:
@@ -361,6 +375,7 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, 
 
     case LWS_CALLBACK_CLOSED:
       if (pss->wsi == NULL) break;
+      if (server->singleton) break;
 
       server->client_count--;
       lwsl_notice("WS closed from %s, clients: %d\n", pss->address, server->client_count);
